@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/javokhirbek1999/microservices-in-go/handlers"
 )
 
@@ -15,10 +17,22 @@ func main() {
 
 	l := log.New(os.Stdout, "product-api", log.LstdFlags)
 
-	hh := handlers.NewProduct(l)
+	// create handlers
+	ph := handlers.NewProduct(l)
 
-	serveMux := http.NewServeMux()
-	serveMux.Handle("/", hh)
+	// create a new serve mux and register the hanlders
+	serveMux := mux.NewRouter()
+
+	getRouter := serveMux.Methods(http.MethodGet).Subrouter()
+	getRouter.HandleFunc("/", ph.GetProducts)
+
+	putRouter := serveMux.Methods(http.MethodPut).Subrouter()
+	putRouter.HandleFunc("/{id:[0-9]+}", ph.UpdateProduct)
+	putRouter.Use(ph.MiddlewareProductValidation)
+
+	postRouter := serveMux.Methods(http.MethodPost).Subrouter()
+	postRouter.HandleFunc("/", ph.AddProduct)
+	postRouter.Use(ph.MiddlewareProductValidation)
 
 	server := &http.Server{
 		Addr:         ":9090",
@@ -34,8 +48,10 @@ func main() {
 		if err != nil {
 			l.Fatal(err)
 		}
+
 	}()
 
+	fmt.Println("Listening to port 9090 on localhost")
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, os.Interrupt)
 	signal.Notify(sigChan, os.Kill)
